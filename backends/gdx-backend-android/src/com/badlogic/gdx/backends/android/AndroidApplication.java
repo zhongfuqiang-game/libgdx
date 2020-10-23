@@ -118,10 +118,10 @@ public class AndroidApplication extends Activity implements AndroidApplicationBa
 		setApplicationLogger(new AndroidApplicationLogger());
 		graphics = new AndroidGraphics(this, config, config.resolutionStrategy == null ? new FillResolutionStrategy()
 			: config.resolutionStrategy);
-		input = AndroidInputFactory.newAndroidInput(this, this, graphics.view, config);
-		audio = new AndroidAudio(this, config);
+		input = createInput(this, this, graphics.view, config);
+		audio = createAudio(this, config);
 		this.getFilesDir(); // workaround for Android bug #10515463
-		files = new AndroidFiles(this.getAssets(), this.getFilesDir().getAbsolutePath());
+		files = new AndroidFiles(this.getAssets(), this);
 		net = new AndroidNet(this, config);
 		this.listener = listener;
 		this.handler = new Handler();
@@ -176,7 +176,7 @@ public class AndroidApplication extends Activity implements AndroidApplicationBa
 		
 		// detect an already connected bluetooth keyboardAvailable
 		if (getResources().getConfiguration().keyboard != Configuration.KEYBOARD_NOKEYS)
-			this.getInput().keyboardAvailable = true;
+			input.setKeyboardAvailable(true);
 	}
 
 	protected FrameLayout.LayoutParams createLayoutParams () {
@@ -192,13 +192,10 @@ public class AndroidApplication extends Activity implements AndroidApplicationBa
 		}
 	}
 
-	@TargetApi(Build.VERSION_CODES.HONEYCOMB)
 	protected void hideStatusBar (boolean hide) {
-		if (!hide || getVersion() < 11) return;
+		if (!hide) return;
 
 		View rootView = getWindow().getDecorView();
-
-		if (getVersion() <= 13) rootView.setSystemUiVisibility(0x0);
 		rootView.setSystemUiVisibility(0x1);
 	}
 
@@ -301,6 +298,11 @@ public class AndroidApplication extends Activity implements AndroidApplicationBa
 	}
 
 	@Override
+	public AndroidInput getInput () {
+		return input;
+	}
+
+	@Override
 	public Files getFiles () {
 		return files;
 	}
@@ -308,11 +310,6 @@ public class AndroidApplication extends Activity implements AndroidApplicationBa
 	@Override
 	public Graphics getGraphics () {
 		return graphics;
-	}
-
-	@Override
-	public AndroidInput getInput () {
-		return input;
 	}
 
 	@Override
@@ -364,7 +361,7 @@ public class AndroidApplication extends Activity implements AndroidApplicationBa
 		super.onConfigurationChanged(config);
 		boolean keyboardAvailable = false;
 		if (config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO) keyboardAvailable = true;
-		input.keyboardAvailable = keyboardAvailable;
+		input.setKeyboardAvailable(keyboardAvailable);
 	}
 
 	@Override
@@ -495,5 +492,15 @@ public class AndroidApplication extends Activity implements AndroidApplicationBa
 	@Override
 	public Handler getHandler () {
 		return this.handler;
+	}
+
+	@Override
+	public AndroidAudio createAudio (Context context, AndroidApplicationConfiguration config) {
+		return new DefaultAndroidAudio(context, config);
+	}
+
+	@Override
+	public AndroidInput createInput (Application activity, Context context, Object view, AndroidApplicationConfiguration config) {
+		return new DefaultAndroidInput(this, this, graphics.view, config);
 	}
 }

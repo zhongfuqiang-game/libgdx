@@ -59,7 +59,7 @@ public class AndroidGraphics implements Graphics, Renderer {
 	 * kill the current process to avoid ANR */
 	static volatile boolean enforceContinuousRendering = false;
 
-	final View view;
+	final GLSurfaceView20 view;
 	int width;
 	int height;
 	int safeInsetLeft, safeInsetTop, safeInsetBottom, safeInsetRight;
@@ -112,46 +112,31 @@ public class AndroidGraphics implements Graphics, Renderer {
 	}
 
 	protected void preserveEGLContextOnPause () {
-		int sdkVersion = android.os.Build.VERSION.SDK_INT;
-		if (sdkVersion >= 11 && view instanceof GLSurfaceView20) ((GLSurfaceView20) view).setPreserveEGLContextOnPause(true);
-		if (view instanceof GLSurfaceView20API18) ((GLSurfaceView20API18) view).setPreserveEGLContextOnPause(true);
+		view.setPreserveEGLContextOnPause(true);
 	}
 
-	protected View createGLSurfaceView (AndroidApplicationBase application, final ResolutionStrategy resolutionStrategy) {
+	protected GLSurfaceView20 createGLSurfaceView (AndroidApplicationBase application, final ResolutionStrategy resolutionStrategy) {
 		if (!checkGL20()) throw new GdxRuntimeException("Libgdx requires OpenGL ES 2.0");
 
 		EGLConfigChooser configChooser = getEglConfigChooser();
-		int sdkVersion = android.os.Build.VERSION.SDK_INT;
-		if (sdkVersion <= 10 && config.useGLSurfaceView20API18) {
-			GLSurfaceView20API18 view = new GLSurfaceView20API18(application.getContext(), resolutionStrategy);
-			if (configChooser != null)
-				view.setEGLConfigChooser(configChooser);
-			else
-				view.setEGLConfigChooser(config.r, config.g, config.b, config.a, config.depth, config.stencil);
-			view.setRenderer(this);
-			return view;
-		} else {
-			GLSurfaceView20 view = new GLSurfaceView20(application.getContext(), resolutionStrategy, config.useGL30 ? 3 : 2);
-			if (configChooser != null)
-				view.setEGLConfigChooser(configChooser);
-			else
-				view.setEGLConfigChooser(config.r, config.g, config.b, config.a, config.depth, config.stencil);
-			view.setRenderer(this);
-			return view;
-		}
+		GLSurfaceView20 view = new GLSurfaceView20(application.getContext(), resolutionStrategy, config.useGL30 ? 3 : 2);
+		if (configChooser != null)
+			view.setEGLConfigChooser(configChooser);
+		else
+			view.setEGLConfigChooser(config.r, config.g, config.b, config.a, config.depth, config.stencil);
+		view.setRenderer(this);
+		return view;
 	}
 
 	public void onPauseGLSurfaceView () {
 		if (view != null) {
-			if (view instanceof GLSurfaceViewAPI18) ((GLSurfaceViewAPI18)view).onPause();
-			if (view instanceof GLSurfaceView) ((GLSurfaceView)view).onPause();
+			view.onPause();
 		}
 	}
 
 	public void onResumeGLSurfaceView () {
 		if (view != null) {
-			if (view instanceof GLSurfaceViewAPI18) ((GLSurfaceViewAPI18)view).onResume();
-			if (view instanceof GLSurfaceView) ((GLSurfaceView)view).onResume();
+			view.onResume();
 		}
 	}
 
@@ -370,14 +355,25 @@ public class AndroidGraphics implements Graphics, Renderer {
 			if (!running) return;
 			running = false;
 			pause = true;
+
+			view.queueEvent(new Runnable() {
+				@Override
+				public void run() {
+					if (!pause) {
+						// pause event already picked up by onDrawFrame
+						return;
+					}
+
+					// it's ok to call ApplicationListener's events
+					// from onDrawFrame because it's executing in GL thread
+					onDrawFrame(null);
+				}
+			});
+
 			while (pause) {
 				try {
-					// TODO: fix deadlock race condition with quick resume/pause.
-					// Temporary workaround:
 					// Android ANR time is 5 seconds, so wait up to 4 seconds before assuming
-					// deadlock and killing process. This can easily be triggered by opening the
-					// Recent Apps list and then double-tapping the Recent Apps button with
-					// ~500ms between taps.
+					// deadlock and killing process.
 					synch.wait(4000);
 					if (pause) {
 						// pause will never go false if onDrawFrame is never called by the GLThread
@@ -723,8 +719,7 @@ public class AndroidGraphics implements Graphics, Renderer {
 			// ignore setContinuousRendering(false) while pausing
 			this.isContinuous = enforceContinuousRendering || isContinuous;
 			int renderMode = this.isContinuous ? GLSurfaceView.RENDERMODE_CONTINUOUSLY : GLSurfaceView.RENDERMODE_WHEN_DIRTY;
-			if (view instanceof GLSurfaceViewAPI18) ((GLSurfaceViewAPI18)view).setRenderMode(renderMode);
-			if (view instanceof GLSurfaceView) ((GLSurfaceView)view).setRenderMode(renderMode);
+			view.setRenderMode(renderMode);
 			mean.clear();
 		}
 	}
@@ -737,8 +732,7 @@ public class AndroidGraphics implements Graphics, Renderer {
 	@Override
 	public void requestRendering () {
 		if (view != null) {
-			if (view instanceof GLSurfaceViewAPI18) ((GLSurfaceViewAPI18)view).requestRender();
-			if (view instanceof GLSurfaceView) ((GLSurfaceView)view).requestRender();
+			view.requestRender();
 		}
 	}
 
